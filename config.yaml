@@ -1,0 +1,7 @@
+content_root: content/posts
+server_name: localhost:5000
+site_name: Ytterbium
+markdown_extras:
+  - footnotes
+  - tables
+template_dir: ytterbium
