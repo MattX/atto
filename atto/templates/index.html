@@ -1,0 +1,23 @@
+{% extends 'bones.html' %}
+
+{% block pagetitle %}{% if title %}{{ title }}{% else %}Index of pages{% endif %}{% endblock %}
+
+{% block body %}
+
+    <div id="main-page-text">{{ content|safe }}</div>
+
+    <div class="column-container">
+        {% for column in categories | slice(2) %}
+            <div class="column">
+                {% for cat_name, cat_articles in column %}
+                    <h2>{{ cat_name }}</h2>
+                    <ul>
+                        {% for article in cat_articles | sort(attribute='date', reverse=True) %}
+                            <li><a href="{{ article.url }}">{{ article.title }}</a> ({{ article.date }})</li>
+                        {% endfor %}
+                    </ul>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </div>
+{% endblock %}

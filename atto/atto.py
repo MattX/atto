@@ -8,11 +8,11 @@ from flask import Flask, render_template, url_for, abort, g
 
 CONFIG_FILE_PATH = "config.yaml"
 
-
 app = Flask(__name__)
 cfg = config.read_config(CONFIG_FILE_PATH)
 app.config['atto_config'] = cfg
 app.config['SERVER_NAME'] = cfg['server_name']
+app.cache = None
 
 
 def url_from_path(path):
@@ -27,7 +27,12 @@ def url_from_path(path):
     return path.replace(root, '', 1).strip('/')
 
 
-def get_posts(include_hidden=False):
+def build_post_list():
+    """
+    Collects all posts from the content directory.
+    :return: A list of post objects containing all posts in the content directory and its
+    subdirectories.
+    """
     post_paths = []
     for (dirpath, _, filenames) in os.walk(cfg['content_root']):
         post_paths.extend([os.path.join(dirpath, fn) for fn in filenames])
@@ -35,14 +40,61 @@ def get_posts(include_hidden=False):
     posts = []
     for pp in post_paths:
         p = post.Post(pp)
-        if include_hidden or not p.get_meta().get("Hiding", False):
-            posts.append(p)
+        posts.append(p)
 
     return posts
 
 
+def get_posts(include_hidden=False):
+    """
+    Returns a list of posts, either from cache or by finding all appropriate files
+    :param include_hidden: The function will include hidden posts in the returned list iff this is set to true.
+    :return: A list of post objects containing all posts in the content directory and its
+    subdirectories.
+    """
+    if cfg['cache_marker']:
+        if app.cache is None or not os.path.exists(cfg['cache_marker']):
+            app.logger.info("Cache marker deleted, rebuilding cache")
+            posts = build_post_list()
+            app.cache = posts
+            with open(cfg['cache_marker'], 'w'):
+                pass
+        else:
+            posts = app.cache
+    else:
+        posts = build_post_list()
+
+    if include_hidden:
+        return posts
+    else:
+        return [p for p in posts if not p.get_hiding()]
+
+
 def render_with_defaults(template, **kwargs):
+    """
+    Like render_template, but will automatically add the site_name parameter to the template
+    arguments.
+    :param template: The remplate to render
+    :param kwargs: Any other arguments to pass through to render_template
+    :return: A rendered template
+    """
     return render_template(template, site_name=cfg['site_name'], **kwargs)
+
+
+def get_page_or_404(path):
+    """
+    Gets a given page, renders its content into the rendered_content field, and returns it. If
+    the page is not found, a 404 page is rendered (and this function does not return).
+    :param path: The page of the page to open
+    :return: A Post object, including a rendered_content field.
+    """
+    try:
+        p = post.Post(path)
+    except FileNotFoundError:
+        abort(404)
+
+    p.rendered_content = markdown2.markdown(p.get_content(), extras=cfg['markdown_extras'])
+    return p
 
 
 @app.route('/')
@@ -67,18 +119,23 @@ def list_articles():
 
     categories = sorted(categories.items())
 
-    return render_with_defaults("index.html", categories=categories)
+    if cfg["main_page"]:
+        main_post = get_page_or_404(cfg["main_page"])
+        title = main_post.get_title()
+        content = main_post.rendered_content
+    else:
+        title = ""
+        content = ""
+
+    return render_with_defaults("index.html", categories=categories, title=title, content=content)
 
 
 @app.route('/post/<path:name>/')
 def show_post(name):
-    try:
-        p = post.Post(os.path.join(cfg['content_root'], name))
-    except FileNotFoundError as e:
-        abort(404)
-    rendered_content = markdown2.markdown(p.get_content(), extras=cfg['markdown_extras'])
+    p = get_page_or_404(os.path.join(cfg['content_root'], name))
+
     return render_with_defaults("post.html", title=p.get_title(), date=p.get_date(), category=p.get_category(),
-                                content=rendered_content, meta=p.get_meta())
+                                content=p.rendered_content, meta=p.get_meta())
 
 
 def make_feed():
@@ -95,7 +152,8 @@ def make_feed():
         fe.link({'href': url_for('show_post', name=url_from_path(p.path), _external=True), 'rel': "alternate"})
         fe.title(p.get_title())
         # Need the date to have tzinfo and be a datetime object.
-        full_date = datetime.datetime.combine(p.get_date(), datetime.time(0, 0, 0, 0).replace(tzinfo=datetime.timezone.utc))
+        full_date = datetime.datetime.combine(p.get_date(),
+                                              datetime.time(0, 0, 0, 0).replace(tzinfo=datetime.timezone.utc))
         fe.pubdate(full_date)
         fe.updated(full_date)
 
@@ -104,20 +162,26 @@ def make_feed():
 
 @app.route('/rss/')
 def rss():
-    return make_feed().rss_str()
+    if cfg['generate_feeds']:
+        return make_feed().rss_str()
+    else:
+        abort(404)
 
 
 @app.route('/atom/')
 def atom():
-    return make_feed().atom_str()
+    if cfg['generate_feeds']:
+        return make_feed().atom_str()
+    else:
+        abort(404)
 
 
-with app.app_context():
-    url_for('static', filename='style.css')
-    url_for('static', filename='favicon.ico')
+@app.errorhandler(404)
+def page_not_found(_):
+    return render_with_defaults("error.html", title="404", descr="The page you were looking for was not found."), 404
 
 
 @app.before_request
 def before_request():
     g.request_start_time = time.time()
-    g.request_time = lambda: "%.5fs" % (time.time() - g.request_start_time)
+    g.request_time = lambda: "{:.3f}".format(time.time() - g.request_start_time)

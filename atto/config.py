@@ -1,8 +1,9 @@
 import yaml
 
 
-REQUIRED_OPTIONS = ["content_root", "site_name", "server_name", "template_dir"]
-LEGAL_OPTIONS = ["markdown_extras"]
+REQUIRED_OPTIONS = ["content_root", "site_name", "server_name"]
+LEGAL_OPTIONS = ["markdown_extras", "main_page", "cache_marker", "generate_feeds"]
+LEGAL_DEFAULTS = [[], None, None, False]
 
 
 def read_config(path):
@@ -23,8 +24,8 @@ def read_config(path):
         if opt not in cfg:
             raise RuntimeError("Required option {} not found".format(opt))
 
-    for opt in LEGAL_OPTIONS:
+    for opt, default in zip(LEGAL_OPTIONS, LEGAL_DEFAULTS):
         if opt not in cfg:
-            cfg[opt] = None
+            cfg[opt] = default
 
     return cfg

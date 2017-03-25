@@ -1,0 +1,17 @@
+{% extends 'bones.html' %}
+
+{% block title %}{{ title }} - {{ site_name }}{% endblock %}
+{% block pagetitle %}{{ title }}{% endblock %}
+{% block titleinfo %}{{ date }}{% if category %} — {{ category }}{% endif %}{% endblock %}
+
+{% block body %}
+    <div id="wrapper">
+        <div id="content-sidebar">
+            {% if meta.Notes %}
+                <div id="notes">{{ meta.Notes }}</div>
+            {% endif %}
+            <div id="category"></div>
+        </div>
+        <div id="content-post">{{ content|safe }}</div>
+    </div>
+{% endblock %}

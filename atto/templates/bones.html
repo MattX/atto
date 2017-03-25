@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}{{ site_name }}{% endblock %}</title>
+    <link href="https://fonts.googleapis.com/css?family=Work+Sans" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="alternate" type="application/rss+xml" title="RSS Feed" href="{{ url_for('rss') }}" />
+    <link rel="alternate" type="application/atom+xml" title="Atom Feed" href="{{ url_for('atom') }}" />
+</head>
+<body>
+<header id="header">
+    <div id="header-container" class="inner clearfix">
+        <h1><img src="/static/logo.png" style="height:25px; width: 25px;"><a
+                href="/" id="logo">{{  site_name }}</a></h1>
+    </div>
+</header>
+<div id="content" class="inner">
+    <div id="pagetitle"><h1>{% block pagetitle %}{% endblock %}</h1>
+        <div id="titleinfo">{% block titleinfo %}{%endblock%}</div></div>
+    {% block body %} {% endblock %}
+</div>
+
+<footer id="footer">
+    <div class="inner">
+        Rendered by <a href="https://github.com/MattX/atto">Atto</a> in {{ g.request_time() }}s.
+        <a href="{{ url_for('rss') }}">RSS feed</a>, <a href="{{ url_for('atom') }}">Atom Feed</a>.
+    </div>
+</footer>
+</body>
+</html>

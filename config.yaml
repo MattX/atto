@@ -1,7 +1,9 @@
 content_root: content/posts
+main_page: content/index.md
 server_name: localhost:5000
-site_name: Ytterbium
+site_name: Example Atto site
 markdown_extras:
   - footnotes
   - tables
-template_dir: ytterbium
+cache_marker: cache
+generate_feeds: True
