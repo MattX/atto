@@ -21,7 +21,7 @@ def url_from_path(path):
     :return: The url corresponding to that post.
     """
     root = cfg['content_root']
-    if not os.path.commonpath([root, path]):
+    if not path.startswith(root):
         raise RuntimeError("Cannot make URL from path {}: not a subpath of {}.".format(path, root))
 
     return path.replace(root, '', 1).strip('/')
