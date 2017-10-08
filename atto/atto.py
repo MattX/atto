@@ -1,6 +1,6 @@
 import os
 import datetime, time
-import post
+from post import Post
 import config
 import markdown2
 from feedgen.feed import FeedGenerator
@@ -38,9 +38,9 @@ def build_post_list():
         post_paths.extend([os.path.join(dirpath, fn) for fn in filenames])
 
     posts = []
-    for pp in post_paths:
-        p = post.Post(pp)
-        posts.append(p)
+    for post_path in post_paths:
+        post = Post(post_path)
+        posts.append(post)
 
     return posts
 
@@ -81,83 +81,99 @@ def render_with_defaults(template, **kwargs):
     return render_template(template, site_name=cfg['site_name'], **kwargs)
 
 
-def get_page_or_404(path):
+def get_post_or_404(path):
     """
-    Gets a given page, renders its content into the rendered_content field, and returns it. If
-    the page is not found, a 404 page is rendered (and this function does not return).
+    Gets a given post, renders its content into the rendered_content field, and returns it. If
+    the post is not found, a 404 page is rendered (and this function does not return).
     :param path: The page of the page to open
     :return: A Post object, including a rendered_content field.
     """
     try:
-        p = post.Post(path)
+        post = Post(path)
     except FileNotFoundError:
         abort(404)
 
-    p.rendered_content = markdown2.markdown(p.get_content(), extras=cfg['markdown_extras'])
-    return p
+    post.rendered_content = markdown2.markdown(post.get_content(), extras=cfg['markdown_extras'])
+    return post
+
+
+def split_categories(categories, nb_cols):
+    categories = sorted(categories, key=lambda x: len(x[1]), reverse=True)
+    assigned = [list() for _ in range(nb_cols)]
+    totals = [0 for _ in range(nb_cols)]
+
+    for category in categories:
+        smallest_col = min(range(nb_cols), key=lambda i: totals[i])
+        assigned[smallest_col].append(category)
+        totals[smallest_col] += len(category[1]) + 2 # Category title height
+
+    # Reorder the columns by date of most recent post
+    return [sorted(col, key=lambda cat: max([post['date'] for post in cat[1]]), reverse=True) for col in assigned]
 
 
 @app.route('/')
 def list_articles():
+    print("Loaded list articles")
     posts = get_posts()
 
     categories = dict()
-    for p in posts:
-        if p.get_meta().get("Hiding", False):
+    for post in posts:
+        if post.get_meta().get("Hiding", False):
             continue
 
-        cat = p.get_category()
+        cat = post.get_category()
         if cat not in categories:
             categories[cat] = list()
-        categories[cat].append({"title": p.get_title(),
-                                "url": url_for('show_post', name=url_from_path(p.path)),
-                                "date": p.get_date()})
+        categories[cat].append({"title": post.get_title(),
+                                "url": url_for('show_post', name=url_from_path(post.path)),
+                                "date": post.get_date()})
 
     if None in categories:
         categories["Uncategorized"] = categories[None]
         del categories[None]
 
-    categories = sorted(categories.items())
+    # Arrange categories for two-column even layout.
+    cols = split_categories(categories.items(), 2)
 
     if cfg["main_page"]:
-        main_post = get_page_or_404(cfg["main_page"])
+        main_post = get_post_or_404(cfg["main_page"])
         title = main_post.get_title()
         content = main_post.rendered_content
     else:
         title = ""
         content = ""
 
-    return render_with_defaults("index.html", categories=categories, title=title, content=content)
+    return render_with_defaults("index.html", columns=cols, title=title, content=content)
 
 
 @app.route('/post/<path:name>/')
 def show_post(name):
-    p = get_page_or_404(os.path.join(cfg['content_root'], name))
+    p = get_post_or_404(os.path.join(cfg['content_root'], name))
 
     return render_with_defaults("post.html", title=p.get_title(), date=p.get_date(), category=p.get_category(),
                                 content=p.rendered_content, meta=p.get_meta())
 
 
 def make_feed():
-    fg = FeedGenerator()
-    fg.title(cfg["site_name"])
-    fg.link({'href': url_for('list_articles', _external=True)})
-    fg.id("I don't really know what Atom IDs are supposed to be.")
-    fg.description(" ")
+    feed_generator = FeedGenerator()
+    feed_generator.title(cfg["site_name"])
+    feed_generator.link({'href': url_for('list_articles', _external=True)})
+    feed_generator.id("I don't really know what Atom IDs are supposed to be.")
+    feed_generator.description(" ")
 
     posts = get_posts()
-    for p in sorted(posts, key=lambda p: p.get_date(), reverse=True)[:10]:
-        fe = fg.add_entry()
-        fe.id(url_from_path(p.path))
-        fe.link({'href': url_for('show_post', name=url_from_path(p.path), _external=True), 'rel': "alternate"})
-        fe.title(p.get_title())
+    for post in sorted(posts, key=lambda p: p.get_date(), reverse=True)[:10]:
+        feed_entry = feed_generator.add_entry()
+        feed_entry.id(url_from_path(post.path))
+        feed_entry.link({'href': url_for('show_post', name=url_from_path(post.path), _external=True), 'rel': "alternate"})
+        feed_entry.title(post.get_title())
         # Need the date to have tzinfo and be a datetime object.
-        full_date = datetime.datetime.combine(p.get_date(),
+        full_date = datetime.datetime.combine(post.get_date(),
                                               datetime.time(0, 0, 0, 0).replace(tzinfo=datetime.timezone.utc))
-        fe.pubdate(full_date)
-        fe.updated(full_date)
+        feed_entry.pubdate(full_date)
+        feed_entry.updated(full_date)
 
-    return fg
+    return feed_generator
 
 
 @app.route('/rss/')
