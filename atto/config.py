@@ -1,31 +1,30 @@
 import yaml
+from collections import namedtuple
+
+Parameter = namedtuple('Parameter', ['name', 'optional', 'default'])
 
 
-REQUIRED_OPTIONS = ["content_root", "site_name", "server_name"]
-LEGAL_OPTIONS = ["markdown_extras", "main_page", "cache_marker", "generate_feeds"]
-LEGAL_DEFAULTS = [[], None, None, False]
+class Config:
+    def __init__(self, parameters, path):
+        try:
+            with open(path, "r") as config_file:
+                config_opts = yaml.load(config_file)
+        except FileNotFoundError:
+            raise RuntimeError("Could not find configuration file {}".format(path))
 
+        self.cfg = {}
 
-def read_config(path):
-    try:
-        with open(path, "r") as config_file:
-            cfg = yaml.load(config_file)
-    except FileNotFoundError:
-        raise RuntimeError("Could not find configuration file {}".format(path))
+        for parameter in parameters:
+            if parameter.name in config_opts:
+                self.cfg[parameter.name] = config_opts[parameter.name]
+                del config_opts[parameter.name]
+            elif parameter.optional:
+                self.cfg[parameter.name] = parameter.default
+            else:
+                raise RuntimeError("Required parameter {} not found".format(parameter.name))
 
-    if REQUIRED_OPTIONS and not cfg:
-        raise RuntimeError("Empty configuration file")
+        if config_opts:
+            raise RuntimeError("Unknown parameters: {}".format(",".join(config_opts.keys())))
 
-    for key in cfg:
-        if key not in LEGAL_OPTIONS + REQUIRED_OPTIONS:
-            raise RuntimeError("Configuration error: unknown option {}".format(key))
-
-    for opt in REQUIRED_OPTIONS:
-        if opt not in cfg:
-            raise RuntimeError("Required option {} not found".format(opt))
-
-    for opt, default in zip(LEGAL_OPTIONS, LEGAL_DEFAULTS):
-        if opt not in cfg:
-            cfg[opt] = default
-
-    return cfg
+    def __getattr__(self, item):
+        return self.cfg[item]
