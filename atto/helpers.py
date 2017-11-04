@@ -58,7 +58,7 @@ def get_posts(app, include_hidden=False):
     if include_hidden:
         return posts
     else:
-        return [p for p in posts if not p.get_hiding()]
+        return [p for p in posts if not p.hiding]
 
 
 def render_with_defaults(template, app, **kwargs):

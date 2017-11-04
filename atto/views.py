@@ -1,5 +1,4 @@
 import time
-import markdown2
 import os
 from flask import url_for, abort, g
 
@@ -15,15 +14,12 @@ def get_post_or_404(path):
     Gets a given post, renders its content into the rendered_content field, and returns it. If
     the post is not found, a 404 page is rendered (and this function does not return).
     :param path: The page of the page to open
-    :return: A Post object, including a rendered_content field.
+    :return: A Post object
     """
     try:
-        post = Post(path)
+        return Post(path)
     except FileNotFoundError:
         abort(404)
-
-    post.rendered_content = markdown2.markdown(post.get_content(), extras=cfg.markdown_extras)
-    return post
 
 
 @app.route('/')
@@ -33,15 +29,12 @@ def list_articles():
 
     categories = dict()
     for post in posts:
-        if post.get_meta().get("Hiding", False):
-            continue
-
-        cat = post.get_category()
+        cat = post.category
         if cat not in categories:
             categories[cat] = list()
-        categories[cat].append({"title": post.get_title(),
+        categories[cat].append({"title": post.title,
                                 "url": url_for('show_post', name=url_from_path(post.path, cfg.content_root)),
-                                "date": post.get_date()})
+                                "date": post.date})
 
     if None in categories:
         categories["Uncategorized"] = categories[None]
@@ -52,8 +45,8 @@ def list_articles():
 
     if cfg.main_page:
         main_post = get_post_or_404(cfg.main_page)
-        title = main_post.get_title()
-        content = main_post.rendered_content
+        title = main_post.title
+        content = main_post.render(cfg.markdown_extras)
     else:
         title = ""
         content = ""
@@ -64,9 +57,10 @@ def list_articles():
 @app.route('/post/<path:name>/')
 def show_post(name):
     p = get_post_or_404(os.path.join(cfg.content_root, name))
+    content = p.render(cfg.markdown_extras)
 
-    return render_with_defaults("post.html", app, title=p.get_title(), date=p.get_date(), category=p.get_category(),
-                                content=p.rendered_content, meta=p.get_meta())
+    return render_with_defaults("post.html", app, title=p.title, date=p.date, category=p.category,
+                                content=content, meta=p.meta, toc=content.toc_html)
 
 
 @app.route('/rss/')

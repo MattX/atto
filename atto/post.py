@@ -1,3 +1,4 @@
+import markdown2
 import os
 import yaml
 import datetime
@@ -48,32 +49,32 @@ class Post:
         if header:
             self.read_header = True
             self.has_header = header['has_header']
-            self.title = header['title']
-            self.date = header['date']
-            self.category = header['category']
-            self.hiding = header['hiding']
-            self.meta = header['meta']
+            self._title = header['title']
+            self._date = header['date']
+            self._category = header['category']
+            self._hiding = header['hiding']
+            self._meta = header['meta']
         else:
             self.read_header = False
             self.has_header = None
-            self.title = None
-            self.date = None
-            self.category = None
-            self.hiding = None
-            self.meta = None
+            self._title = None
+            self._date = None
+            self._category = None
+            self._hiding = None
+            self._meta = None
 
         self.read_content = False
-        self.content = None
+        self._content = None
 
     def header_dict(self):
         """
         :return: a header dictionary that can be read by __init__.
         """
         self.ensure_header()
-        return {'has_header': self.has_header, 'title': self.title, 'date': self.date, 'category': self.category,
-                'hiding': self.hiding, 'meta': self.meta}
+        return {'has_header': self.has_header, 'title': self._title, 'date': self._date, 'category': self._category,
+                'hiding': self._hiding, 'meta': self._meta}
 
-    def __read_header(self):
+    def _read_header(self):
         with open(self.path) as post_file:
             first_line = post_file.readline()
             kind = get_header_kind(first_line)
@@ -92,73 +93,91 @@ class Post:
                     lines.append(line)
                 header_text = "".join(lines)
 
-        header_dict = yaml.load(header_text)
-        if not header_dict:
-            self.meta = dict()
-        else:
-            self.meta = header_dict
+        header_dict = yaml.load(header_text) or dict()
+        lowercase_header = {k.lower(): v for (k, v) in header_dict.items()}
 
-        self.title = get_and_remove_or_default(self.meta, "Title",
-                                               os.path.splitext(os.path.basename(self.path))[0].capitalize())
+        self._title = get_and_remove_or_default(lowercase_header, "title",
+                                                os.path.splitext(os.path.basename(self.path))[0].capitalize())
 
-        self.date = get_and_remove_or_default(self.meta, "Date",
-                                              datetime.datetime.fromtimestamp(os.path.getctime(self.path)).date())
+        self._date = get_and_remove_or_default(lowercase_header, "date",
+                                               datetime.datetime.fromtimestamp(os.path.getctime(self.path)).date())
 
-        self.category = get_and_remove_or_default(self.meta, "Category", None)
+        self._category = get_and_remove_or_default(lowercase_header, "category", None)
 
-        self.hiding = get_and_remove_or_default(self.meta, "Hiding", False)
+        self._hiding = get_and_remove_or_default(lowercase_header, "hiding", False)
+
+        self._meta = lowercase_header
 
         self.read_header = True
 
-    def ensure_header(self):
+    def _ensure_header(self):
         """
         Populates the header field. Calls __read_header, which will only read the header.
         """
         if not self.read_header:
-            self.__read_header()
+            self._read_header()
 
-    def __read_content(self):
-        self.ensure_header()
+    def _read_content(self):
+        self._ensure_header()
         with open(self.path) as post_file:
             content = post_file.readlines()
 
         if self.has_header:
-            # 1st line is guaranteed to be a header separator, find second and remove anything
-            # before that.
+            # 1st line is guaranteed to be a header separator, find second and remove anything before that.
             header_type = get_header_kind(content[0])
             header_end = content.index(HEADER_CLOSE[header_type], 1)
             content = content[header_end+1:]
 
-        self.content = "".join(content)
+        self._content = "".join(content)
         self.read_content = True
 
-    def ensure_content(self):
+    def _ensure_content(self):
         """
         Populates the content field
         """
         if not self.read_content:
-            self.__read_content()
+            self._read_content()
 
-    def get_title(self):
-        self.ensure_header()
-        return self.title
+    def render(self, markdown_extras):
+        """
+        Renders the post
 
-    def get_date(self):
-        self.ensure_header()
-        return self.date
+        TODO: When using TOCs, generated IDs can collide with
 
-    def get_category(self):
-        self.ensure_header()
-        return self.category
+        :param markdown_extras: Markdown extensions to use when rendering the post.
+        :return: A string representing the rendered post.
+        """
+        extras = {e: None for e in markdown_extras + self.meta.get("markdown_extras", [])}
+        if "toc" in extras:
+            extras["header-ids"] = "_post_"
+        return markdown2.markdown(self.content, extras=extras)
 
-    def get_hiding(self):
-        self.ensure_header()
-        return self.hiding
+    @property
+    def title(self):
+        self._ensure_header()
+        return self._title
 
-    def get_meta(self):
-        self.ensure_header()
-        return self.meta
+    @property
+    def date(self):
+        self._ensure_header()
+        return self._date
 
-    def get_content(self):
-        self.ensure_content()
-        return self.content
+    @property
+    def category(self):
+        self._ensure_header()
+        return self._category
+
+    @property
+    def hiding(self):
+        self._ensure_header()
+        return self._hiding
+
+    @property
+    def meta(self):
+        self._ensure_header()
+        return self._meta
+
+    @property
+    def content(self):
+        self._ensure_content()
+        return self._content

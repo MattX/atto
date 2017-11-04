@@ -7,10 +7,16 @@
 {% block body %}
     <div id="wrapper">
         <div id="content-sidebar">
+            <div id="notes">
             {% if meta.Notes %}
-                <div id="notes">{{ meta.Notes }}</div>
+                <div id="notes">{{ meta.notes }}</div>
             {% endif %}
-            <div id="category"></div>
+            </div>
+            <div id="toc">
+            {% if toc %}
+                {{ toc|safe }}
+            {% endif %}
+            </div>
         </div>
         <div id="content-post">{{ content|safe }}</div>
     </div>
