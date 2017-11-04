@@ -3,7 +3,7 @@ from flask import render_template, url_for
 from feedgen.feed import FeedGenerator
 import datetime
 
-from post import Post
+from .post import Post
 
 
 def url_from_path(path, content_root):

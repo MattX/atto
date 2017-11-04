@@ -1,6 +1,6 @@
 from . import app
 
-from config import Parameter, Config
+from .config import Parameter, Config
 
 
 CONFIG_FILE_PATH = "config.yaml"

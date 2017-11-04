@@ -3,8 +3,8 @@ import os
 from flask import url_for, abort, g
 
 from . import app
-from helpers import url_from_path, get_posts, split_categories, render_with_defaults, make_feed
-from post import Post
+from .helpers import url_from_path, get_posts, split_categories, render_with_defaults, make_feed
+from .post import Post
 
 cfg = app.config['atto_config']
 
