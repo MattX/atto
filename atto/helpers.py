@@ -96,15 +96,15 @@ def make_feed(app):
     feed_generator.description(" ")
 
     posts = get_posts(app)
-    for post in sorted(posts, key=lambda p: p.get_date(), reverse=True)[:10]:
+    for post in sorted(posts, key=lambda p: p.date, reverse=True)[:10]:
         feed_entry = feed_generator.add_entry()
         feed_entry.id(url_from_path(post.path, cfg.content_root))
         feed_entry.link({'href': url_for('show_post', name=url_from_path(post.path, cfg.content_root),
                                          _external=True),
                          'rel': "alternate"})
-        feed_entry.title(post.get_title())
+        feed_entry.title(post.title)
         # Need the date to have tzinfo and be a datetime object.
-        full_date = datetime.datetime.combine(post.get_date(),
+        full_date = datetime.datetime.combine(post.date,
                                               datetime.time(0, 0, 0, 0).replace(tzinfo=datetime.timezone.utc))
         feed_entry.pubdate(full_date)
         feed_entry.updated(full_date)
